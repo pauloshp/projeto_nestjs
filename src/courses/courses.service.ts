@@ -4,22 +4,26 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateCourseDto } from './dto/create-course.dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto/update-course.dto';
+import { Tag } from './entities/tag.entity';
 
 @Injectable()
 export class CoursesService {
   constructor(
     @InjectRepository(Course)
-    private readonly courseRepository: Repository<Course>
-  ) {
+    private readonly courseRepository: Repository<Course>,
 
-  }
+    @InjectRepository(Tag)
+    private readonly tagRepository: Repository<Tag>
+  ) {}
 
   findAll() {
-    return this.courseRepository.find()
+    return this.courseRepository.find({
+      relations: ['tags']
+    })
   }
 
   findOne(id: number) {
-    const course = this.courseRepository.findOneBy({id: id})
+    const course = this.courseRepository.findOneOrFail({ where: {id: id}, relations: ['tags'] })
 
     if(!course) {
       throw new NotFoundException(`Course ID ${id} not found`)
@@ -28,21 +32,32 @@ export class CoursesService {
     return course
   }
 
-  create(createCourseDto: CreateCourseDto) {
-    const course = this.courseRepository.create(createCourseDto)
+  async create(createCourseDto: CreateCourseDto) {
+    const tags = await Promise.all(
+      createCourseDto.tags.map((name) => this.preloadTagByName(name))
+    )
+
+    const course = this.courseRepository.create({
+      ...createCourseDto,
+      tags
+    })
     return this.courseRepository.save(course)
   }
 
   async update(id: string, updateCourseDto: UpdateCourseDto) {
+    const tags = updateCourseDto.tags && (await Promise.all(
+      updateCourseDto.tags.map((name) => this.preloadTagByName(name))
+    ))
+
     const course = await this.courseRepository.preload({
       id: +id,
-      ... updateCourseDto
+      ... updateCourseDto,
+      tags
     })
 
     if(!course) {
       throw new NotFoundException(`Course ID ${id} not found`)
     }
-
     return this.courseRepository.save(course)
   }
 
@@ -54,5 +69,15 @@ export class CoursesService {
     }
 
     return this.courseRepository.remove(course)
+  }
+
+  private async preloadTagByName(name: string): Promise<Tag> {
+    const tag = await this.tagRepository.findOneBy({ name })
+
+    if (tag) {
+      return tag
+    }
+
+    return this.tagRepository.create({ name })
   }
 }
