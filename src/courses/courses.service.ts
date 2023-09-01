@@ -22,8 +22,8 @@ export class CoursesService {
     })
   }
 
-  findOne(id: number) {
-    const course = this.courseRepository.findOneOrFail({ where: {id: id}, relations: ['tags'] })
+  findOne(id: string) {
+    const course = this.courseRepository.findOne({ where: {id: +id}, relations: ['tags'] })
 
     if(!course) {
       throw new NotFoundException(`Course ID ${id} not found`)
@@ -61,8 +61,8 @@ export class CoursesService {
     return this.courseRepository.save(course)
   }
 
-  async remove(id: number) {
-    const course = await this.courseRepository.findOneBy({id: id})
+  async remove(id: string) {
+    const course = await this.courseRepository.findOneBy({id: +id})
 
     if(!course) {
       throw new NotFoundException(`Course ID ${id} not found`)
